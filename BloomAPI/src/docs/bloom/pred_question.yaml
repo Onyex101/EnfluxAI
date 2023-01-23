@@ -1,0 +1,24 @@
+Predict Question
+---
+tags:
+  - Bloom Classification
+parameters:
+  - name: body
+    description: The body should contain the question text to be predicted
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - "question"
+      properties:
+        question:
+          type: "string"
+          format: text
+          example: "Which statement best describes the pharmacological activity of LMWH?"
+responses:
+  200:
+    description: after the classifier returns a new prediction
+
+  400:
+    description: Fails to predict due to bad request data
