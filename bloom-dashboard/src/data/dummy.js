@@ -1,6 +1,7 @@
 import React from 'react'
 import { FiEdit, FiCreditCard, FiFile } from 'react-icons/fi'
 import { BsCurrencyDollar, BsShield } from 'react-icons/bs'
+import { FaMarker } from "react-icons/fa"
 import avatar from './avatar.jpg'
 import avatar2 from './avatar2.jpg'
 import avatar3 from './avatar3.png'
@@ -19,6 +20,11 @@ export const links = [
         name: 'batch',
         icon: <FiFile />,
         url: 'dashboard/batch'
+      },
+      {
+        name: 'keyword',
+        icon: <FaMarker />,
+        url: 'dashboard/keywords'
       },
     ],
   },

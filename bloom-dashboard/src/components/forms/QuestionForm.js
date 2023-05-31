@@ -6,7 +6,7 @@ const url = process.env.REACT_APP_API_URL
 
 
 const QuestionForm = () => {
-    const { setLimeLoading, setLimeText, currentColor, setPrediction, setQuestionID } = useStateContext()
+    const { setLimeLoading, setLimeText, currentColor, setPrediction, setQuestionID, model } = useStateContext()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const { register, handleSubmit, reset, formState: { errors } } = useForm()
@@ -14,6 +14,8 @@ const QuestionForm = () => {
     const onSubmit = (data) => {
         setLoading((prev) => !prev);
         const limeUrl = `${url}/predict/lime`;
+        data["model"] = model
+        // console.log("data:", data)
         fetch(`${url}/predict`, {
             method: 'POST',
             headers: {

@@ -16,6 +16,8 @@ import pandas as pd
 import numpy as np
 import spacy
 import keras
+import ktrain
+from ktrain import text
 from tensorflow.keras.utils import pad_sequences
 from pandarallel import pandarallel
 pandarallel.initialize(progress_bar=False)
@@ -34,6 +36,7 @@ ALLOWED_EXTENSIONS = set(['xlsx', 'xlsm', 'xls'])
 
 class Prediction(BaseModel):
     text: str
+    model: str
     predict: Optional[str]
     feedback: Optional[str]
 
@@ -46,22 +49,29 @@ def load_models():
     with open("app/ml_model/model_tokenizer.pkl", 'rb') as f:
         global tokenizer
         tokenizer = pickle.load(f)
-    global model
-    model = keras.models.load_model("app/ml_model/lstm_model")
+    global bloom_model
+    bloom_model = keras.models.load_model("app/ml_model/lstm_model")
     global max_length
     max_length = 70
     global padding_type
     padding_type = "pre"
     global trunction_type
     trunction_type="pre"
+    global pance_med_model
+    pance_med_model = ktrain.load_predictor('app/ml_model/pance_med')
     global labels
-    labels = ['analysis', 'application', 'comprehension', 'evaluation', 'knowledge', 'synthesis']
+    labels = load_labels("blooms")
     print("_____models loaded successfully_____")
 
 
-@router.post('/')
+@router.post("")
 async def predict_text_no_auth(prediction: Prediction, db: Session = Depends(get_db)):
-    text = get_prediction(prediction.text.strip())
+    global labels
+    labels = load_labels(prediction.model)
+    # print(f"labels: {labels}")
+    text = get_prediction(prediction.text.strip(), prediction.model)
+    predict=text["class"]
+    print(f"prediction: {predict}")
     predict_model = models.Predictions(
         text=prediction.text,
         predict=text["class"],
@@ -78,7 +88,9 @@ async def predict_text_no_auth(prediction: Prediction, db: Session = Depends(get
 async def predict_text_auth(prediction: Prediction, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if user is None:
         raise get_user_exceptions()
-    text = get_prediction(prediction.text.strip())
+    global labels
+    labels = load_labels(prediction.model)
+    text = get_prediction(prediction.text.strip(),prediction.model)
     predict_model = models.Predictions()
     predict_model.text = prediction.text
     predict_model.predict = text["class"]
@@ -93,7 +105,9 @@ async def predict_text_auth(prediction: Prediction, user: dict = Depends(get_cur
 
 @router.post('/lime')
 async def get_lime_no_auth(prediction: Prediction, db: Session = Depends(get_db)):
-    lime = load_LIME(prediction.text.strip())
+    global labels
+    labels = load_labels(prediction.model)
+    lime = load_LIME(prediction.text.strip(),labels)
     return succesful_response(200, lime)
 
 
@@ -101,7 +115,9 @@ async def get_lime_no_auth(prediction: Prediction, db: Session = Depends(get_db)
 async def get_lime_auth(prediction: Prediction, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if user is None:
         raise get_user_exceptions()
-    lime = load_LIME(prediction.text.strip())
+    global labels
+    labels = load_labels(prediction.model)
+    lime = load_LIME(prediction.text.strip(),labels)
     return succesful_response(200, lime)
 
 
@@ -110,6 +126,8 @@ async def predict_batch_no_auth(file: UploadFile = File(...)):
     if file and allowed_file(file.filename):
         batch_file = BytesIO(file.file.read())
         buffer: BytesIO = predict_file(batch_file)
+        global labels
+        labels = load_labels("blooms")
         return StreamingResponse(
             BytesIO(buffer.getvalue()),
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -125,6 +143,8 @@ async def predict_batch_auth(file: UploadFile = File(...), user: dict = Depends(
     if file and allowed_file(file.filename):
         batch_file = BytesIO(file.file.read())
         buffer: BytesIO = predict_file(batch_file)
+        global labels
+        labels = load_labels("blooms")
         return StreamingResponse(
             BytesIO(buffer.getvalue()),
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -186,24 +206,38 @@ def http_exception(message="data not found"):
     return HTTPException(status_code=404, detail=message)
 
 
-def make_predictions(X_batch_text, Probability=True):
+def load_labels(model):
+    if model == "blooms":
+        labels = ['analysis', 'application', 'comprehension', 'evaluation', 'knowledge', 'synthesis']
+    else:
+        labels = pance_med_model.get_classes()
+    return labels
+
+def bloom_make_predictions(X_batch_text, Probability=True):
   seq = tokenizer.texts_to_sequences(X_batch_text)
   padded = pad_sequences(seq, maxlen=max_length, padding=padding_type, truncating=trunction_type)
-  y_preds = model.predict(padded)
+  y_preds = bloom_model.predict(padded)
   return y_preds if Probability else [labels[np.argmax(i)] for i in y_preds]
 
+def ktrain_make_predictions(text):
+  return pance_med_model.predict(text, return_proba=True)
 
-def get_prediction(text):
-    pred = make_predictions([extract_sentence(text)])[0].round(3)
+
+def get_prediction(text,model="blooms"):
+    if model == "blooms":
+        pred = bloom_make_predictions([extract_sentence(text)])[0].round(3)
+    else:
+        pred = ktrain_make_predictions(text)
+    print(f"labels: {labels}")
     res = labels[np.argmax(pred)]
     return {"class":res, "proba":str(np.max(pred))}
 
 
-def load_LIME(text):
-    text = extract_sentence(text)
+def load_LIME(text,model="blooms"):
+    text = extract_sentence(text) if model == "blooms" else text.lower()
     explainer = LimeTextExplainer(class_names=labels, verbose=True)
     explanation = explainer.explain_instance(
-        text, classifier_fn=make_predictions, num_features=6, top_labels=1, num_samples=100)
+        text, classifier_fn=bloom_make_predictions if model == "blooms" else ktrain_make_predictions, top_labels=1, num_samples=200)
     return explanation.as_html()
 
 
@@ -215,7 +249,7 @@ def extract_sentence(text):
 def predict_file(file):
     df = pd.read_excel(file, engine="openpyxl")
     df['text'] = df['item_text'].parallel_apply(extract_sentence)
-    df["predicted_level"] = make_predictions(df['text'], Probability=False)
+    df["predicted_level"] = bloom_make_predictions(df['text'], Probability=False)
     # Creating output and writer (pandas excel writer)
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LimeFrame, Feedback, PredictedClass, QuestionForm } from '../components';
+import { LimeFrame, Feedback, PredictedClass, QuestionForm, DropDownForm } from '../components';
 
 const Demo = () => {
   return (
@@ -10,6 +10,11 @@ const Demo = () => {
             Bloom Classifier
           </div>
         </div>
+
+        <div className="pl-4">
+          <DropDownForm/>
+        </div>
+
 
         <div className="bg-white dark:text-gray-200 dark:bg-secondary-dark-bg rounded-xl w-full lg:w-full p-8 pt-9 m-3 flex flex-col lg:flex-row">
           <div className="flex-1 lg:pr-8">

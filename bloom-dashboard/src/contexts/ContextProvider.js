@@ -20,6 +20,7 @@ export const ContextProvider = ({ children }) => {
     const [limeText, setLimeText] = useState(undefined);
     const [prediction, setPrediction] = useState({});
     const [questionID, setQuestionID] = useState(null);
+    const [model, setModel] = useState("blooms")
 
     const setMode = (mode) => {
         setCurrentMode(mode);
@@ -34,7 +35,7 @@ export const ContextProvider = ({ children }) => {
     const handleClick = (clicked) => setIsClicked({ ...initialState, [clicked]: true });
 
     return (
-        <StateContext.Provider value={{ currentColor, currentMode, activeMenu, screenSize, setScreenSize, handleClick, isClicked, initialState, limeLoading, limeText, prediction, themeSettings, questionID, setLimeText, setLimeLoading, setIsClicked, setActiveMenu, setCurrentColor, setCurrentMode, setMode, setColor, setThemeSettings, setPrediction, setQuestionID }}>
+        <StateContext.Provider value={{ currentColor, currentMode, activeMenu, screenSize, setScreenSize, handleClick, model, isClicked, initialState, limeLoading, limeText, prediction, themeSettings, questionID, setLimeText, setLimeLoading, setIsClicked, setActiveMenu, setCurrentColor, setCurrentMode, setMode, setColor, setThemeSettings, setPrediction, setQuestionID, setModel }}>
             {children}
         </StateContext.Provider>
     );
